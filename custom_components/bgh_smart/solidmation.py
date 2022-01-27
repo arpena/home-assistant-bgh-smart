@@ -124,9 +124,9 @@ class SolidmationClient():
         if swing_mode:
             swing_mode = int(swing_mode)
 
-        preset_mode = next(item['Value'] for item in data if item['ValueType'] == 18)
-        if swing_mode:
-            swing_mode = int(swing_mode)
+        # preset_mode = next(item['Value'] for item in data if item['ValueType'] == 18)
+        # if preset_mode:
+        #     preset_mode = int(preset_mode)
         return {
             'temperature': temperature,
             'target_temperature': target_temperature,
