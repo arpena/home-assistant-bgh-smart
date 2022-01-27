@@ -220,6 +220,11 @@ class BghHVAC(ClimateEntity):
 
     # SWING
     @property
+    def swing_mode(self):
+        """Return the list of available swing modes."""
+        return self._swing_mode
+
+    @property
     def swing_modes(self):
         """Return the list of available swing modes."""
         return self._swing_modes
