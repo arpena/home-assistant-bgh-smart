@@ -151,15 +151,18 @@ class SolidmationClient():
         """Get the status of a device"""
         return self.get_devices(home_id)[device_id]
 
-    def _set_device_mode(self, device_id, mode, swing_mode):
+    def _set_device_mode(self, device_id, mode):
         mode['endpointID'] = device_id
-        swing_mode['endpointID'] = device_id
         endpoint = "%s/HomeCloudCommandService.svc/HVACSetModes" % _API_URL
-        resp = self._request(endpoint, mode)
+        return self._request(endpoint, mode)
 
-        swing_endpoint = "%s/HomeCloudCommandService.svc/HVACSendCommand" % _API_URL
-        self._request(swing_endpoint, swing_mode)
-        return resp
+    def _send_command(self, device_id, command):
+        endpoint = "%s/HomeCloudCommandService.svc/HVACSendCommand" % _API_URL
+        command_config = {
+            "endpointID": device_id,
+            "subCommand": command
+        }
+        return self._request(endpoint, command_config)
 
     def set_mode(self, device_id, mode, temp, fan='auto', swing_mode='off', preset_mode='none'):
         """Set the mode of a device"""
@@ -169,8 +172,7 @@ class SolidmationClient():
             'flags': 255,
             'mode': MODE[mode]
         }
-
-        swing_config = {
-            "subCommand": PRESET_MODE.get(preset_mode) or SWING_MODE.get(swing_mode)
-        }
-        return self._set_device_mode(device_id, config, swing_config)
+        response = self._set_device_mode(device_id, config)
+        command = PRESET_MODE.get(preset_mode) or SWING_MODE.get(swing_mode)
+        self._send_command(device_id, command)
+        return response

@@ -214,6 +214,8 @@ class BghHVAC(ClimateEntity):
             self._swing_mode,
             self._preset_mode)
 
+        self.update()
+
     def set_temperature(self, **kwargs):
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
