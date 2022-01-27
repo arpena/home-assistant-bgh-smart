@@ -1,6 +1,7 @@
 """BGH Smart integration."""
 
 import logging
+from datetime import timedelta
 
 import voluptuous as vol
 
@@ -50,6 +51,8 @@ MAP_FAN_MODE_ID = {
     254: FAN_AUTO
 }
 
+
+SCAN_INTERVAL = timedelta(seconds=10)
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
     """Set up the BGH Smart platform."""

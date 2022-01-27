@@ -22,6 +22,20 @@ MODE = {
     'no_change': 255
 }
 
+# COMMAND_SWING_HORIZONTAL = 0x51
+# COMMAND_SWING_VERTICAL = 0x61
+# COMMAND_TURBO = 0x71
+
+SWING_MODE = {
+    'off': 0,
+    'on': 0x51
+}
+
+PRESET_MODE = {
+    'none': 0,
+    'boost': 0x71
+}
+
 class SolidmationClient():
     """BGH client implementation"""
 
@@ -148,17 +162,7 @@ class SolidmationClient():
             'mode': MODE[mode]
         }
 
-        COMMAND_SWING_HORIZONTAL = 0x51
-        COMMAND_SWING_VERTICAL = 0x61
-        COMMAND_TURBO = 0x71
-
-        if preset_mode == 'boost':
-            command = COMMAND_TURBO
-        elif swing_mode == 'on':
-            command = COMMAND_SWING_HORIZONTAL
-        else:
-            command = 0
         swing_config = {
-            "subCommand": command
+            "subCommand": PRESET_MODE.get(preset_mode) or SWING_MODE.get(swing_mode)
         }
         return self._set_device_mode(device_id, config, swing_config)
