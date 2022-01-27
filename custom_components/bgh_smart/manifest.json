@@ -5,7 +5,7 @@
   "issue_tracker": "https://github.com/mool/home-assistant-bgh-smart/issues",
   "dependencies": [],
   "codeowners": ["@mool"],
-  "requirements": ["pybgh==0.1.4"],
+  "requirements": ["setuptools", "wheel", "twine", "tqdm", "pylint"],
   "iot_class": "cloud_polling",
   "version": "0.0.7"
 }

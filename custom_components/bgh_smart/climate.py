@@ -50,9 +50,10 @@ MAP_FAN_MODE_ID = {
     254: FAN_AUTO
 }
 
+
 def setup_platform(hass, config, add_entities, discovery_info=None):
     """Set up the BGH Smart platform."""
-    import pybgh
+    from . import solidmation
 
     # Assign configuration variables.
     # The configuration check takes care they are present.
@@ -60,7 +61,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     password = config[CONF_PASSWORD]
 
     # Setup connection with devices/cloud
-    client = pybgh.BghClient(username, password)
+    client = solidmation.BghClient(username, password)
 
     # Verify that passed in configuration works
     if not client.token:
