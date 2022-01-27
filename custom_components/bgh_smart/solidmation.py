@@ -6,7 +6,7 @@ _API_URL = "%s/1.0" % _BASE_URL
 
 FAN_MODE = {
     'low': 1,
-    'mid': 2,
+    'medium': 2,
     'high': 3,
     'auto': 254,
     'no_change': 255
@@ -36,7 +36,8 @@ PRESET_MODE = {
     'boost': 0x71
 }
 
-class SolidmationClient():
+
+class SolidmationClient:
     """BGH client implementation"""
 
     def __init__(self, email, password):
@@ -83,7 +84,7 @@ class SolidmationClient():
             device = {
                 'device_id': endpoint['EndpointID'],
                 'device_name': endpoint['Description'],
-                'device_data': data['Devices'][idx],
+                'device_data': data['Devices'][idx],  # type dict,
                 'raw_data': data['EndpointValues'][idx]['Values'],
                 'data': self._parse_raw_data(data['EndpointValues'][idx]['Values']),
                 'endpoints_data': endpoint

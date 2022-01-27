@@ -17,11 +17,8 @@ from homeassistant.components.climate.const import (
     ATTR_HVAC_MODE,
     HVAC_MODE_HEAT, HVAC_MODE_COOL, HVAC_MODE_FAN_ONLY, HVAC_MODE_DRY,
     HVAC_MODE_AUTO, HVAC_MODE_OFF, SWING_ON, SWING_OFF, SUPPORT_PRESET_MODE, PRESET_NONE, PRESET_SLEEP, PRESET_BOOST,
-    PRESET_ECO)
-from homeassistant.const import (
-    ATTR_ENTITY_ID, ATTR_STATE, ATTR_TEMPERATURE,
-    CONF_USERNAME, CONF_PASSWORD,
-    STATE_ON, STATE_OFF, STATE_UNKNOWN, TEMP_CELSIUS, TEMP_FAHRENHEIT)
+    PRESET_ECO, FAN_LOW, FAN_MEDIUM, FAN_HIGH, FAN_AUTO)
+from homeassistant.const import ATTR_TEMPERATURE, CONF_USERNAME, CONF_PASSWORD, STATE_UNKNOWN, TEMP_CELSIUS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,11 +26,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_USERNAME): cv.string,
     vol.Required(CONF_PASSWORD): cv.string
 })
-
-FAN_AUTO = 'auto'
-FAN_LOW = 'low'
-FAN_MEDIUM = 'mid'
-FAN_HIGH = 'high'
 
 MAP_MODE_ID = {
     0: HVAC_MODE_OFF,
@@ -68,6 +60,7 @@ MAP_PRESET_MODE_ID = {
 
 SCAN_INTERVAL = timedelta(seconds=10)
 
+
 def setup_platform(hass, config, add_entities, discovery_info=None):
     """Set up the BGH Smart platform."""
     from . import solidmation
@@ -92,9 +85,10 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         for _device_id, device in home_devices.items():
             devices.append(device)
 
-    add_entities(BghHVAC(device, client) for device in devices)
+    add_entities(SolidmationHVAC(device, client) for device in devices)
 
-class BghHVAC(ClimateEntity):
+
+class SolidmationHVAC(ClimateEntity):
     """Representation of a BGH Smart HVAC."""
 
     def __init__(self, device, client):
@@ -149,6 +143,10 @@ class BghHVAC(ClimateEntity):
     def name(self):
         """Return the display name of this HVAC."""
         return self._device_name
+
+    @property
+    def unique_id(self):
+        return self._device_id
 
     @property
     def temperature_unit(self):
