@@ -1,7 +1,7 @@
 """BGH Smart devices API client"""
 import requests
 
-_BASE_URL = 'https://myhabeetat.solidmation.com'
+_BASE_URL = 'https://myhabeetatcloud-services.solidmation.com/'
 _API_URL = "%s/1.0" % _BASE_URL
 
 FAN_MODE = {
@@ -22,7 +22,7 @@ MODE = {
     'no_change': 255
 }
 
-class BghClient():
+class SolidmationClient():
     """BGH client implementation"""
 
     def __init__(self, email, password):
@@ -30,9 +30,9 @@ class BghClient():
 
     @staticmethod
     def _login(email, password):
-        endpoint = "%s/accounts/login.aspx" % _BASE_URL
-        resp = requests.post(endpoint, json={'AccountEmail': email, 'Password': password})
-        return resp.json()['AccessToken']
+        endpoint = "%s/control/LoginPage.aspx/DoStandardLogin" % _BASE_URL
+        resp = requests.post(endpoint, json={'user': email, 'password': password})
+        return resp.json()['d']
 
     def _request(self, endpoint, payload=None):
         if payload is None:
@@ -115,13 +115,8 @@ class BghClient():
 
     def get_homes(self):
         """Get all the homes of the account"""
-        print("##### 1")
         endpoint = "%s/HomeCloudService.svc/EnumHomes" % _API_URL
-        print("##### 2 %s" % endpoint)
         resp = self._request(endpoint)
-        print("##### 3")
-        print(resp)
-        print("##### 4")
         return resp.json()['EnumHomesResult']['Homes']
 
     def get_devices(self, home_id):
@@ -134,13 +129,17 @@ class BghClient():
         """Get the status of a device"""
         return self.get_devices(home_id)[device_id]
 
-    def _set_device_mode(self, device_id, mode):
+    def _set_device_mode(self, device_id, mode, swing_mode):
         mode['endpointID'] = device_id
-        endpoint = "%s/HomeCloudService.svc/HVACSetModes" % _API_URL
+        swing_mode['endpointID'] = device_id
+        endpoint = "%s/HomeCloudCommandService.svc/HVACSetModes" % _API_URL
         resp = self._request(endpoint, mode)
+
+        swing_endpoint = "%s/HomeCloudCommandService.svc/HVACSendCommand" % _API_URL
+        self._request(swing_endpoint, swing_mode)
         return resp
 
-    def set_mode(self, device_id, mode, temp, fan='auto'):
+    def set_mode(self, device_id, mode, temp, fan='auto', swing_mode='off', preset_mode='none'):
         """Set the mode of a device"""
         config = {
             'desiredTempC': str(temp),
@@ -148,4 +147,18 @@ class BghClient():
             'flags': 255,
             'mode': MODE[mode]
         }
-        return self._set_device_mode(device_id, config)
+
+        COMMAND_SWING_HORIZONTAL = 0x51
+        COMMAND_SWING_VERTICAL = 0x61
+        COMMAND_TURBO = 0x71
+
+        if preset_mode == 'boost':
+            command = COMMAND_TURBO
+        elif swing_mode == 'on':
+            command = COMMAND_SWING_HORIZONTAL
+        else:
+            command = 0
+        swing_config = {
+            "subCommand": command
+        }
+        return self._set_device_mode(device_id, config, swing_config)
