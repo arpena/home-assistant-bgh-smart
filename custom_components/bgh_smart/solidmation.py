@@ -120,11 +120,19 @@ class SolidmationClient():
         if mode_id:
             mode_id = int(mode_id)
 
+        swing_mode = next(item['Value'] for item in data if item['ValueType'] == 18)
+        if swing_mode:
+            swing_mode = int(swing_mode)
+
+        preset_mode = next(item['Value'] for item in data if item['ValueType'] == 18)
+        if swing_mode:
+            swing_mode = int(swing_mode)
         return {
             'temperature': temperature,
             'target_temperature': target_temperature,
             'fan_speed': fan_speed,
-            'mode_id': mode_id
+            'mode_id': mode_id,
+            'swing_mode': swing_mode
         }
 
     def get_homes(self):

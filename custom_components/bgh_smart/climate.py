@@ -51,6 +51,20 @@ MAP_FAN_MODE_ID = {
     254: FAN_AUTO
 }
 
+MAP_PRESET_MODE_ID = {
+    0: SWING_OFF,
+    8: SWING_OFF,
+    16: SWING_ON,
+    24: SWING_ON
+}
+
+MAP_SWING_MODE_ID = {
+    0: PRESET_NONE,
+    8: PRESET_BOOST,
+    16: PRESET_NONE,
+    24: PRESET_BOOST
+}
+
 
 SCAN_INTERVAL = timedelta(seconds=10)
 
@@ -121,6 +135,8 @@ class BghHVAC(ClimateEntity):
             self._target_temperature = self._device['data']['target_temperature']
             self._mode = MAP_MODE_ID[self._device['data']['mode_id']]
             self._fan_speed = MAP_FAN_MODE_ID[self._device['data']['fan_speed']]
+            self._swing_mode = MAP_SWING_MODE_ID[self._device['data']['swing_mode']]
+            self._preset_mode = MAP_PRESET_MODE_ID[self._device['data']['swing_mode']]
 
     def update(self):
         """Fetch new state data for this HVAC.
