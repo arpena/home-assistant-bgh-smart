@@ -1,9 +1,10 @@
 """BGH Smart devices API client"""
 import requests
 
-#_BASE_URL = 'https://myhabeetatcloud-services.solidmation.com/'
-_BASE_URL = 'https://bgh-services.solidmation.com'
-_API_URL = "%s/1.0" % _BASE_URL
+BASE_URL = {
+    'myhabeetat': 'https://myhabeetatcloud-services.solidmation.com/',
+    'bgh': 'https://bgh-services.solidmation.com'
+}
 
 FAN_MODE = {
     'low': 1,
@@ -41,12 +42,14 @@ PRESET_MODE = {
 class SolidmationClient:
     """BGH client implementation"""
 
-    def __init__(self, email, password):
-        self.token = self._login(email, password)
+    def __init__(self, email, password, backend="myhabeetat"):
+        base_url = BASE_URL[backend]
+        self.token = self._login(email, password, base_url)
+        self.api_url = "%s/1.0" % base_url
 
     @staticmethod
-    def _login(email, password):
-        endpoint = "%s/control/LoginPage.aspx/DoStandardLogin" % _BASE_URL
+    def _login(email, password, base_url):
+        endpoint = "%s/control/LoginPage.aspx/DoStandardLogin" % base_url
         resp = requests.post(endpoint, json={'user': email, 'password': password})
         return resp.json()['d']
 
@@ -57,7 +60,7 @@ class SolidmationClient:
         return requests.post(endpoint, json=payload)
 
     def _get_data_packets(self, home_id):
-        endpoint = "%s/HomeCloudService.svc/GetDataPacket" % _API_URL
+        endpoint = "%s/HomeCloudService.svc/GetDataPacket" % self.api_url
         payload = {
             'homeID': home_id,
             'serials': {
@@ -139,7 +142,7 @@ class SolidmationClient:
 
     def get_homes(self):
         """Get all the homes of the account"""
-        endpoint = "%s/HomeCloudService.svc/EnumHomes" % _API_URL
+        endpoint = "%s/HomeCloudService.svc/EnumHomes" % self.api_url
         resp = self._request(endpoint)
         return resp.json()['EnumHomesResult']['Homes']
 
@@ -155,11 +158,11 @@ class SolidmationClient:
 
     def _set_device_mode(self, device_id, mode):
         mode['endpointID'] = device_id
-        endpoint = "%s/HomeCloudCommandService.svc/HVACSetModes" % _API_URL
+        endpoint = "%s/HomeCloudCommandService.svc/HVACSetModes" % self.api_url
         return self._request(endpoint, mode)
 
     def _send_command(self, device_id, command):
-        endpoint = "%s/HomeCloudCommandService.svc/HVACSendCommand" % _API_URL
+        endpoint = "%s/HomeCloudCommandService.svc/HVACSendCommand" % self.api_url
         command_config = {
             "endpointID": device_id,
             "subCommand": command

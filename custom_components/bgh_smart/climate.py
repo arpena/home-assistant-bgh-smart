@@ -24,7 +24,8 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_USERNAME): cv.string,
-    vol.Required(CONF_PASSWORD): cv.string
+    vol.Required(CONF_PASSWORD): cv.string,
+    vol.Optional("backend"): cv.string
 })
 
 MAP_MODE_ID = {
@@ -69,9 +70,10 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     # The configuration check takes care they are present.
     username = config[CONF_USERNAME]
     password = config[CONF_PASSWORD]
+    backend = config.get("backend") 
 
     # Setup connection with devices/cloud
-    client = solidmation.SolidmationClient(username, password)
+    client = solidmation.SolidmationClient(username, password, backend)
 
     # Verify that passed in configuration works
     if not client.token:
