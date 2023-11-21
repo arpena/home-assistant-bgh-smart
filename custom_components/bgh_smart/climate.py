@@ -103,7 +103,7 @@ class SolidmationHVAC(ClimateEntity):
         self._max_temp = None
         self._current_temperature = None
         self._target_temperature = None
-        self._mode = STATE_UNKNOWN
+        self._mode = HVAC_MODE_OFF
         self._fan_speed = FAN_AUTO
         self._swing_mode = SWING_OFF
         self._preset_mode = PRESET_NONE
