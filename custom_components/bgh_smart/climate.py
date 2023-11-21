@@ -18,14 +18,14 @@ from homeassistant.components.climate.const import (
     HVAC_MODE_HEAT, HVAC_MODE_COOL, HVAC_MODE_FAN_ONLY, HVAC_MODE_DRY,
     HVAC_MODE_AUTO, HVAC_MODE_OFF, SWING_ON, SWING_OFF, SUPPORT_PRESET_MODE, PRESET_NONE, PRESET_SLEEP, PRESET_BOOST,
     PRESET_ECO, FAN_LOW, FAN_MEDIUM, FAN_HIGH, FAN_AUTO)
-from homeassistant.const import ATTR_TEMPERATURE, CONF_USERNAME, CONF_PASSWORD, CONF_PLATFORM, TEMP_CELSIUS
+from homeassistant.const import ATTR_TEMPERATURE, CONF_USERNAME, CONF_PASSWORD, STATE_UNKNOWN, TEMP_CELSIUS
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_USERNAME): cv.string,
     vol.Required(CONF_PASSWORD): cv.string,
-    vol.Optional(CONF_PLATFORM): cv.string
+    vol.Optional("backend"): cv.string
 })
 
 MAP_MODE_ID = {
@@ -70,7 +70,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     # The configuration check takes care they are present.
     username = config[CONF_USERNAME]
     password = config[CONF_PASSWORD]
-    backend = config[CONF_PLATFORM]
+    backend = config.get("backend") 
 
     # Setup connection with devices/cloud
     client = solidmation.SolidmationClient(username, password, backend)
