@@ -1,7 +1,8 @@
 """BGH Smart devices API client"""
 import requests
 
-_BASE_URL = 'https://myhabeetatcloud-services.solidmation.com/'
+#_BASE_URL = 'https://myhabeetatcloud-services.solidmation.com/'
+_BASE_URL = 'https://bgh-services.solidmation.com'
 _API_URL = "%s/1.0" % _BASE_URL
 
 FAN_MODE = {
