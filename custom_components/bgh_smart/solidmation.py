@@ -29,7 +29,7 @@ MODE = {
 
 SWING_MODE = {
     'off': 0,
-    'on': 0x51
+    'on': 0x61
 }
 
 PRESET_MODE = {
