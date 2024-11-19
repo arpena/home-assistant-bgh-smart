@@ -30,7 +30,7 @@ MODE = {
 
 SWING_MODE = {
     'off': 0,
-    'on': 0x61
+    'on': 0x51
 }
 
 PRESET_MODE = {
@@ -57,7 +57,7 @@ class SolidmationClient:
         if payload is None:
             payload = {}
         payload['token'] = {'Token': self.token}
-        return requests.post(endpoint, json=payload)
+        return requests.post(endpoint, json=payload, timeout=10)
 
     def _get_data_packets(self, home_id):
         endpoint = "%s/HomeCloudService.svc/GetDataPacket" % self.api_url
