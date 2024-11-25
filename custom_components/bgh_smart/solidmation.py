@@ -1,5 +1,9 @@
 """BGH Smart devices API client"""
-import requests
+import logging
+from aiohttp import ClientSession, ClientResponse
+
+# enable debugging
+logging.basicConfig(level=logging.DEBUG)
 
 BASE_URL = {
     'myhabeetat': 'https://myhabeetatcloud-services.solidmation.com/',
@@ -42,25 +46,31 @@ PRESET_MODE = {
 class SolidmationClient:
     """BGH client implementation"""
 
-    def __init__(self, email, password, backend="myhabeetat"):
-        base_url = BASE_URL[backend]
-        self.token = self._login(email, password, base_url)
-        self.api_url = "%s/1.0" % base_url
+    def __init__(self, email, password, backend, websession: ClientSession):
+        self.base_url = BASE_URL[backend]
+        self.email = email
+        self.password = password
+        self.websession = websession
+        self.token = None
+        self.timeout = 10
+#        self.token = self._login(email, password, base_url)
 
-    @staticmethod
-    def _login(email, password, base_url):
-        endpoint = "%s/control/LoginPage.aspx/DoStandardLogin" % base_url
-        resp = requests.post(endpoint, json={'user': email, 'password': password})
-        return resp.json()['d']
+    async def _async_login(self):
+        endpoint = "%s/control/LoginPage.aspx/DoStandardLogin" % self.base_url
+        resp = await self.websession.request("post", endpoint, json={'user': self.email, 'password': self.password}, timeout=self.timeout)
+        resp.raise_for_status()
+        return (await resp.json())['d']
 
-    def _request(self, endpoint, payload=None):
+    async def _async_request(self, endpoint, payload=None):
         if payload is None:
             payload = {}
+        if self.token is None:
+            self.token = await self._async_login()
         payload['token'] = {'Token': self.token}
-        return requests.post(endpoint, json=payload, timeout=10)
+        return await self.websession.request("post", endpoint, json=payload, timeout=self.timeout)
 
-    def _get_data_packets(self, home_id):
-        endpoint = "%s/HomeCloudService.svc/GetDataPacket" % self.api_url
+    async def _async_get_data_packets(self, home_id):
+        endpoint = "%s/1.0/HomeCloudService.svc/GetDataPacket" % self.base_url
         payload = {
             'homeID': home_id,
             'serials': {
@@ -75,8 +85,9 @@ class SolidmationClient:
             },
             'timeOut': 10000
         }
-        resp = self._request(endpoint, payload)
-        return resp.json()['GetDataPacketResult']
+        resp = await self._async_request(endpoint, payload)
+        resp.raise_for_status()
+        return (await resp.json())['GetDataPacketResult']
 
     def _parse_devices(self, data):
         devices = {}
@@ -140,36 +151,37 @@ class SolidmationClient:
             'swing_mode': swing_mode
         }
 
-    def get_homes(self):
+    async def async_get_homes(self):
         """Get all the homes of the account"""
-        endpoint = "%s/HomeCloudService.svc/EnumHomes" % self.api_url
-        resp = self._request(endpoint)
-        return resp.json()['EnumHomesResult']['Homes']
+        endpoint = "%s/1.0/HomeCloudService.svc/EnumHomes" % self.base_url
+        resp = await self._async_request(endpoint)
+        resp.raise_for_status()
+        return (await resp.json())['EnumHomesResult']['Homes']
 
-    def get_devices(self, home_id):
+    async def async_get_devices(self, home_id):
         """Get all the devices of a home"""
-        data = self._get_data_packets(home_id)
+        data = await self._async_get_data_packets(home_id)
         devices = self._parse_devices(data)
         return devices
 
-    def get_status(self, home_id, device_id):
+    async def async_get_status(self, home_id, device_id):
         """Get the status of a device"""
-        return self.get_devices(home_id)[device_id]
+        return (await self.async_get_devices(home_id))[device_id]
 
-    def _set_device_mode(self, device_id, mode):
+    async def _async_set_device_mode(self, device_id, mode):
         mode['endpointID'] = device_id
-        endpoint = "%s/HomeCloudCommandService.svc/HVACSetModes" % self.api_url
-        return self._request(endpoint, mode)
+        endpoint = "%s/1.0/HomeCloudCommandService.svc/HVACSetModes" % self.base_url
+        return await self._async_request(endpoint, mode)
 
-    def _send_command(self, device_id, command):
-        endpoint = "%s/HomeCloudCommandService.svc/HVACSendCommand" % self.api_url
+    async def _async_send_command(self, device_id, command):
+        endpoint = "%s/1.0/HomeCloudCommandService.svc/HVACSendCommand" % self.base_url
         command_config = {
             "endpointID": device_id,
             "subCommand": command
         }
-        return self._request(endpoint, command_config)
+        return await self._async_request(endpoint, command_config)
 
-    def set_mode(self, device_id, mode, temp, fan='auto', swing_mode='off', preset_mode='none'):
+    async def async_set_mode(self, device_id, mode, temp, fan='auto', swing_mode='off', preset_mode='none'):
         """Set the mode of a device"""
         config = {
             'desiredTempC': str(temp),
@@ -177,7 +189,7 @@ class SolidmationClient:
             'flags': 255,
             'mode': MODE[mode]
         }
-        response = self._set_device_mode(device_id, config)
+        response = await self._async_set_device_mode(device_id, config)
         command = PRESET_MODE.get(preset_mode) or SWING_MODE.get(swing_mode)
-        self._send_command(device_id, command)
+        await self._async_send_command(device_id, command)
         return response
