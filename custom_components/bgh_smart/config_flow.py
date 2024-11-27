@@ -17,6 +17,7 @@ from .options_flow import OptionsFlow
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for BGH Smart."""
+    LOGGER.error("Creating config flow")
 
     VERSION = 1
     MINOR_VERSION = 1
@@ -27,6 +28,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_validate_input(self, user_input):
         """Validate user credentials."""
+        LOGGER.error("inside async validate input config flow")
         self._username = user_input.get(CONF_USERNAME) or ""
         password = user_input.get(CONF_PASSWORD) or ""
         self._backend = user_input.get(CONF_BACKEND) or ""
@@ -49,11 +51,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
+        LOGGER.error("inside async step user config flow")
         errors = {}
 
         if user_input:
 #            await self.async_set_unique_id(user_input.get(CONF_HOST))
-            self._abort_if_unique_id_configured()
+#            self._abort_if_unique_id_configured()
 
             try:
                 return await self.async_validate_input(user_input)
