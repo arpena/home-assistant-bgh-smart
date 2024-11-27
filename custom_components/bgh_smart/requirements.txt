@@ -1,7 +1,0 @@
-setuptools
-wheel
-twine
-tqdm
-pylint
-voluptuous
-homeassistant

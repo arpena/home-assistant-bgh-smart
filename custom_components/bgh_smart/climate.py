@@ -10,11 +10,11 @@ import voluptuous as vol
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
     PLATFORM_SCHEMA as CLIMATE_PLATFORM_SCHEMA,
-    PRESET_BOOST,
-    PRESET_COMFORT,
-    PRESET_ECO,
+#    PRESET_BOOST,
+#    PRESET_COMFORT,
+#    PRESET_ECO,
     PRESET_NONE,
-    PRESET_SLEEP,
+#    PRESET_SLEEP,
     SWING_BOTH,
     SWING_HORIZONTAL,
     SWING_OFF,
@@ -34,22 +34,20 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import PlatformNotReady
+from homeassistant.exceptions import PlatformNotReady, ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from aiohttp.client_exceptions import ClientError
 
-_LOGGER = logging.getLogger(__name__)
-
-BACKEND_BGH = "bgh"
-BACKEND_MYHABEETAT = "myhabeetat"
+from .const import DOMAIN, LOGGER, CONF_BACKEND, BACKEND_BGH, BACKEND_MYHABEETAT
 
 PLATFORM_SCHEMA = CLIMATE_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_USERNAME): cv.string,
     vol.Required(CONF_PASSWORD): cv.string,
-    vol.Optional("backend", default=BACKEND_BGH): vol.In(
+    vol.Optional(CONF_BACKEND, default=BACKEND_BGH): vol.In(
         [BACKEND_BGH, BACKEND_MYHABEETAT]
     )
 })
@@ -77,15 +75,24 @@ MAP_SWING_MODE_ID = {
     24: SWING_HORIZONTAL
 }
 
-MAP_PRESET_MODE_ID = {
-    0: PRESET_NONE,
-    8: PRESET_BOOST,
-    16: PRESET_NONE,
-    24: PRESET_BOOST
+#MAP_PRESET_MODE_ID = {
+#    0: PRESET_NONE,
+##    8: PRESET_BOOST,
+#    16: PRESET_NONE,
+#    24: PRESET_BOOST
+#}
+
+MAP_STATE_ICONS = {
+    HVACMode.COOL: "mdi:snowflake",
+    HVACMode.DRY: "mdi:water-off",
+    HVACMode.FAN_ONLY: "mdi:fan",
+    HVACMode.HEAT: "mdi:white-balance-sunny",
+    HVACMode.HEAT_COOL: "mdi:cached",
 }
 
-
 SCAN_INTERVAL = timedelta(seconds=10)
+
+DOMAIN = "climate"
 
 async def async_setup_platform(
         hass: HomeAssistant,
@@ -104,12 +111,22 @@ async def async_setup_platform(
 
     # Setup connection with devices/cloud
     client = solidmation.SolidmationClient(username, password, backend, websession=async_get_clientsession(hass))
+    try:
+        await client.async_login()
+    except (solidmation.AuthenticationException, solidmation.UnauthorizedException) as exception:
+        LOGGER.error("Invalid credentials for BGH Smart cloud")
+        raise ConfigEntryAuthFailed("Invalid credentials") from exception
+    except (solidmation.LoginTimeoutException, ClientError, ConnectionError) as exception:
+        raise PlatformNotReady("Could not connect to {backend} with username {username}") from exception
+    except Exception as ex:
+        LOGGER.exception(ex)
+        return False
 
     homes = await client.async_get_homes()
 
     # Verify that passed in configuration works
     if not homes:
-        _LOGGER.error("Could not connect to BGH Smart cloud")
+        LOGGER.error("No homes defined on BGH Smart cloud")
         return
 
     # Add devices
@@ -127,6 +144,7 @@ class SolidmationHVAC(ClimateEntity):
     """Representation of a BGH Smart HVAC."""
 
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_target_temperature_step = 1
 
     def __init__(self, device, client):
         """Initialize a BGH Smart HVAC."""
@@ -135,43 +153,43 @@ class SolidmationHVAC(ClimateEntity):
 
         self._device_name = self._device['device_name']
         self._device_id = self._device['device_id']
-        # add a unique device id
-        self._device_unique_id = self._device['device_id']
-        #self._attr_unique_id = self._device['device_id']
-        # not sure which one is the right one
         self._home_id = self._device['device_data']['HomeID']
-        self._min_temp = None
-        self._max_temp = None
-        self._current_temperature = None
-        self._target_temperature = None
-        self._mode = HVACMode.OFF
-        self._fan_speed = FAN_AUTO
-        self._swing_mode = SWING_OFF
-        self._preset_mode = PRESET_NONE
+        self._attr_unique_id = self._device['device_id']
+        self._attr_min_temp = None
+        self._attr_max_temp = None
+        self._attr_current_temperature = None
+        self._attr_target_temperature = None
+        self._attr_hvac_mode = HVACMode.OFF
+        self._attr_fan_mode = FAN_AUTO
+        self._attr_swing_mode = SWING_OFF
+        self._attr_preset_mode = PRESET_NONE
+        self._attr_available = False
 
         self._parse_data()
 
-        self._hvac_modes = [HVACMode.AUTO, HVACMode.COOL, HVACMode.HEAT,
+        self._attr_hvac_modes = [HVACMode.AUTO, HVACMode.COOL, HVACMode.HEAT,
                             HVACMode.DRY, HVACMode.FAN_ONLY, HVACMode.OFF]
-        self._fan_modes = [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH]
-        self._swing_modes = [SWING_HORIZONTAL, SWING_OFF]
-        self._preset_modes = [PRESET_NONE, PRESET_ECO, PRESET_BOOST, PRESET_SLEEP]
+        self._attr_fan_modes = [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH]
+        self._attr_swing_modes = [SWING_HORIZONTAL, SWING_OFF]
+#        self._attr_preset_modes = [PRESET_NONE, PRESET_ECO, PRESET_BOOST, PRESET_SLEEP]
 
-        self._support = (ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE | ClimateEntityFeature.SWING_MODE | ClimateEntityFeature.PRESET_MODE)
+#        self._attr_supported_features = (ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE | ClimateEntityFeature.SWING_MODE | ClimateEntityFeature.PRESET_MODE | ClimateEntityFeature.TURN_OFF | ClimateEntityFeature.TURN_ON)
+        self._attr_supported_features = (ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE | ClimateEntityFeature.SWING_MODE | ClimateEntityFeature.TURN_OFF | ClimateEntityFeature.TURN_ON)
 
     def _parse_data(self):
         """Parse the data in self._device"""
-        self._min_temp = 17
-        self._max_temp = 30
-
-        # Sometimes the API doesn't answer with the raw_data
+        # When the device is offline the API doesn't answer with the raw_data
         if self._device['raw_data']:
-            self._current_temperature = self._device['data']['temperature']
-            self._target_temperature = self._device['data']['target_temperature']
-            self._mode = MAP_MODE_ID[self._device['data']['mode_id']]
-            self._fan_speed = MAP_FAN_MODE_ID[self._device['data']['fan_speed']]
-            self._swing_mode = MAP_SWING_MODE_ID[self._device['data']['swing_mode']]
-            self._preset_mode = MAP_PRESET_MODE_ID[self._device['data']['swing_mode']]
+            self._attr_current_temperature = self._device['data']['temperature']
+            self._attr_target_temperature = self._device['data']['target_temperature']
+            self._attr_hvac_mode = MAP_MODE_ID[self._device['data']['mode_id']]
+            self._attr_fan_mode = MAP_FAN_MODE_ID[self._device['data']['fan_speed']]
+            self._attr_swing_mode = MAP_SWING_MODE_ID[self._device['data']['swing_mode']]
+#            self._preset_mode = MAP_PRESET_MODE_ID[self._device['data']['preset_mode']]
+        self._attr_available = self._device['data']['available']
+        self._attr_min_temp = self._device['data']['min_temp']
+        self._attr_max_temp = self._device['data']['max_temp']
+
 
     async def async_update(self) -> None:
         """Fetch new state data for this HVAC.
@@ -185,74 +203,15 @@ class SolidmationHVAC(ClimateEntity):
         """Return the display name of this HVAC."""
         return self._device_name
 
-    @property
-    def unique_id(self):
-        return self._device_id
-
-    @property
-    def temperature_unit(self):
-        """BGH Smart API uses celsius on the backend."""
-        return self._attr_temperature_unit
-
-    @property
-    def current_temperature(self):
-        """Return the current temperature."""
-        return self._current_temperature
-
-    @property
-    def target_temperature(self):
-        """Return the target temperature."""
-        return self._target_temperature
-
-    @property
-    def min_temp(self):
-        """Return the minimum temperature for the current mode of operation."""
-        return self._min_temp
-
-    @property
-    def max_temp(self):
-        """Return the maximum temperature for the current mode of operation."""
-        return self._max_temp
-
-    @property
-    def supported_features(self):
-        """Return the list of supported features."""
-        return self._support
-
-    @property
-    def hvac_mode(self):
-        """Return the current mode of operation if unit is on."""
-        return self._mode
-
-    @property
-    def hvac_modes(self):
-        """List of available operation modes."""
-        return self._hvac_modes
-
-    @property
-    def fan_mode(self):
-        """Return the current fan mode."""
-        return self._fan_speed
-
-    @property
-    def fan_modes(self):
-        """List of available fan modes."""
-        return self._fan_modes
-
-    @property
-    def preset_modes(self):
-        return self._preset_modes
-
     async def async_set_mode(self) -> None:
         """Push the settings to the unit."""
         await self._client.async_set_mode(
             self._device_id,
-            self._mode,
-            self._target_temperature,
-            self._fan_speed,
-            self._swing_mode,
-            self._preset_mode)
-
+            self._attr_hvac_mode,
+            self._attr_target_temperature,
+            self._attr_fan_mode,
+            self._attr_swing_mode,
+            self._attr_preset_mode)
         await self.async_update()
 
     async def async_set_temperature(self, **kwargs) -> None:
@@ -261,43 +220,35 @@ class SolidmationHVAC(ClimateEntity):
         operation_mode = kwargs.get(ATTR_HVAC_MODE)
 
         if temperature:
-            self._target_temperature = temperature
+            self._attr_target_temperature = temperature
 
         if operation_mode:
-            self._mode = operation_mode
+            self._attr_hvac_mode = operation_mode
 
         await self.async_set_mode()
 
     async def async_set_hvac_mode(self, operation_mode) -> None:
         """Set new target operation mode."""
-        self._mode = operation_mode
+        self._attr_hvac_mode = operation_mode
         await self.async_set_mode()
 
     async def async_set_fan_mode(self, fan_mode) -> None:
         """Set new target fan mode."""
-        self._fan_speed = fan_mode
+        self._attr_fan_mode = fan_mode
         await self.async_set_mode()
-
-    # SWING
-    @property
-    def swing_mode(self):
-        """Return the list of available swing modes."""
-        return self._swing_mode
-
-    @property
-    def swing_modes(self):
-        """Return the list of available swing modes."""
-        return self._swing_modes
 
     async def async_set_swing_mode(self, swing_mode) -> None:
-        self._swing_mode = swing_mode
+        self._attr_swing_mode = swing_mode
         await self.async_set_mode()
 
-    # PRESET
+#    async def async_set_preset_mode(self, preset_mode) -> None:
+#        self._attr_preset_mode = preset_mode
+#        await self.async_set_mode()
+
     @property
-    def preset_mode(self):
-        return self._preset_mode
-
-    async def async_set_preset_mode(self, preset_mode) -> None:
-        self._preset_mode = preset_mode
-        await self.async_set_mode()
+    def icon(self):
+        """Return the icon for the current state."""
+        icon = None
+        if self._attr_hvac_mode != HVACMode.OFF:
+            icon = MAP_STATE_ICONS.get(self._hvac_mode)
+        return icon

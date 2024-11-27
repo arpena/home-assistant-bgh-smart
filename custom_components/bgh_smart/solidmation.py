@@ -1,9 +1,17 @@
 """BGH Smart devices API client"""
 import logging
-from aiohttp import ClientSession, ClientResponse
+from aiohttp import ClientSession
+from aiohttp import (
+    ClientConnectorError,
+    ClientOSError,
+    ClientSession,
+    ClientTimeout,
+    ServerDisconnectedError,
+    TCPConnector,
+)
 
 # enable debugging
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 BASE_URL = {
     'myhabeetat': 'https://myhabeetatcloud-services.solidmation.com/',
@@ -41,8 +49,25 @@ PRESET_MODE = {
     'none': 0,
     'boost': 0x71
 }
-
-
+# Exceptions
+class BaseBGHSmartException(Exception):
+    """Base exception for BGH Smart integration."""
+class BadRequestException(BaseBGHSmartException):
+    """Bad request."""
+class UnauthorizedException(BaseBGHSmartException):
+    """Unauthorized."""
+class UnknownException(BaseBGHSmartException):
+    """Unknown exception."""
+class UnsupportedHostException(BaseBGHSmartException):
+    """Raised when API is not available on given host."""
+class AuthenticationException(UnauthorizedException):
+    """Raised when authentication is not correct."""
+class InvalidSessionException(UnauthorizedException):
+    """Raised when session is invalid."""
+class LoginRetryErrorException(BaseBGHSmartException):
+    """Raised when too many login retries are attempted."""
+class LoginTimeoutException(BaseBGHSmartException):
+    """Raised when a timeout is encountered during login."""
 class SolidmationClient:
     """BGH client implementation"""
 
@@ -53,21 +78,48 @@ class SolidmationClient:
         self.websession = websession
         self.token = None
         self.timeout = 10
-#        self.token = self._login(email, password, base_url)
 
-    async def _async_login(self):
+    async def _post(self, endpoint, json):
+        try:
+            resp = await self.websession.request("post", endpoint, json=json, timeout=self.timeout)
+            if resp.status == 400:
+                result = await resp.text()
+                raise BadRequestException(result)
+
+            if resp.status == 404:
+                result = await resp.text()
+                raise UnsupportedHostException(result)
+
+            if resp.status != 200:
+                result = await resp.text()
+                raise UnknownException(result)
+            return resp
+        except (
+            ClientConnectorError,
+            ClientOSError,
+            ServerDisconnectedError,
+        ) as e:
+            raise ConnectionError(str(e)) from e
+
+    async def async_login(self) -> None:
         endpoint = "%s/control/LoginPage.aspx/DoStandardLogin" % self.base_url
-        resp = await self.websession.request("post", endpoint, json={'user': self.email, 'password': self.password}, timeout=self.timeout)
-        resp.raise_for_status()
-        return (await resp.json())['d']
+        try:
+            resp = await self._post(endpoint, json={'user': self.email, 'password': self.password})
+            self.token = (await resp.json())['d']
+            if self.token == '':
+                raise AuthenticationException()
+        except TimeoutError as e:
+            raise LoginTimeoutException(str(e)) from e
 
     async def _async_request(self, endpoint, payload=None):
         if payload is None:
             payload = {}
         if self.token is None:
-            self.token = await self._async_login()
+            await self.async_login()
+        if self.token == '':
+            raise InvalidSessionException()
         payload['token'] = {'Token': self.token}
-        return await self.websession.request("post", endpoint, json=payload, timeout=self.timeout)
+        return await self._post(endpoint, json=payload)
 
     async def _async_get_data_packets(self, home_id):
         endpoint = "%s/1.0/HomeCloudService.svc/GetDataPacket" % self.base_url
@@ -86,7 +138,6 @@ class SolidmationClient:
             'timeOut': 10000
         }
         resp = await self._async_request(endpoint, payload)
-        resp.raise_for_status()
         return (await resp.json())['GetDataPacketResult']
 
     def _parse_devices(self, data):
@@ -106,6 +157,11 @@ class SolidmationClient:
             }
             device['data']['device_model'] = device['device_data']['DeviceModel']
             device['data']['device_serial_number'] = device['device_data']['Address']
+            device['data']['available'] = device['device_data']['IsOnline']
+            max_temp = next(item['Value'] for item in device['endpoints_data']['Parameters'] if item['Name'] == 'SetpointMaxC')
+            device['data']['max_temp'] = float(max_temp) if max_temp else 30
+            min_temp = next(item['Value'] for item in device['endpoints_data']['Parameters'] if item['Name'] == 'SetpointMinC')
+            device['data']['min_temp'] = float(min_temp) if min_temp else 17
 
             devices[device['device_id']] = device
 
@@ -155,7 +211,6 @@ class SolidmationClient:
         """Get all the homes of the account"""
         endpoint = "%s/1.0/HomeCloudService.svc/EnumHomes" % self.base_url
         resp = await self._async_request(endpoint)
-        resp.raise_for_status()
         return (await resp.json())['EnumHomesResult']['Homes']
 
     async def async_get_devices(self, home_id):

@@ -1,11 +1,14 @@
 {
   "domain": "bgh_smart",
   "name": "BGH Smart",
-  "documentation": "https://github.com/mool/home-assistant-config/tree/master/config/custom_components/bgh_smart",
-  "issue_tracker": "https://github.com/mool/home-assistant-bgh-smart/issues",
+  "documentation": "https://github.com/arpena/home-assistant-bgh-smart",
+  "issue_tracker": "https://github.com/arpena/home-assistant-bgh-smart/issues",
   "dependencies": [],
-  "codeowners": ["@mool"],
-  "requirements": ["setuptools", "wheel", "twine", "tqdm", "pylint"],
+  "codeowners": ["@mool", "@hector-romero", "@arpena"],
+  "integration_type": "hub",
+  "requirements": [],
   "iot_class": "cloud_polling",
-  "version": "0.0.7"
+  "version": "0.1.0",
+  "config_flow": true,
+  "single_config_entry": true
 }
