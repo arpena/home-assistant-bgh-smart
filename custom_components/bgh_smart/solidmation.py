@@ -1,5 +1,4 @@
 """BGH Smart devices API client"""
-import logging
 from aiohttp import ClientSession
 from aiohttp import (
     ClientConnectorError,
@@ -9,9 +8,9 @@ from aiohttp import (
     ServerDisconnectedError,
     TCPConnector,
 )
+import json
 
-# enable debugging
-#logging.basicConfig(level=logging.DEBUG)
+from .const import LOGGER
 
 BASE_URL = {
     'myhabeetat': 'https://myhabeetatcloud-services.solidmation.com/',
@@ -42,7 +41,9 @@ MODE = {
 
 SWING_MODE = {
     'off': 0,
-    'on': 0x51
+    'on': 0x51,
+    'horizontal': 0x51,
+    'vertical': 0x61
 }
 
 PRESET_MODE = {
@@ -158,9 +159,9 @@ class SolidmationClient:
             device['data']['device_model'] = device['device_data']['DeviceModel']
             device['data']['device_serial_number'] = device['device_data']['Address']
             device['data']['available'] = device['device_data']['IsOnline']
-            max_temp = next(item['Value'] for item in device['endpoints_data']['Parameters'] if item['Name'] == 'SetpointMaxC')
+            max_temp = self._find_value(device['endpoints_data']['Parameters'], 'SetpointMaxC', 'Name')
             device['data']['max_temp'] = float(max_temp) if max_temp else 30
-            min_temp = next(item['Value'] for item in device['endpoints_data']['Parameters'] if item['Name'] == 'SetpointMinC')
+            min_temp = self._find_value(device['endpoints_data']['Parameters'], 'SetpointMinC', 'Name')
             device['data']['min_temp'] = float(min_temp) if min_temp else 17
 
             devices[device['device_id']] = device
@@ -168,35 +169,43 @@ class SolidmationClient:
         return devices
 
     @staticmethod
+    def _find_value(data, value, value_name = 'ValueType'):
+        try:
+            return next(item['Value'] for item in data if item[value_name] == value)
+        except StopIteration:
+            LOGGER.error("Value %s = %s not found in %s", value_name, value, data)
+            return None
+
+    @staticmethod
     def _parse_raw_data(data):
         if data is None:
             return {}
 
-        temperature = next(item['Value'] for item in data if item['ValueType'] == 13)
+        temperature = SolidmationClient._find_value(data,13)
         if temperature:
             temperature = float(temperature)
             if temperature <= -50:
                 temperature = None
 
-        target_temperature = next(item['Value'] for item in data if item['ValueType'] == 20)
+        target_temperature = SolidmationClient._find_value(data,20)
         if target_temperature:
             target_temperature = float(target_temperature)
             if target_temperature == 255:
                 target_temperature = 20
 
-        fan_speed = next(item['Value'] for item in data if item['ValueType'] == 15)
+        fan_speed = SolidmationClient._find_value(data,15)
         if fan_speed:
             fan_speed = int(fan_speed)
 
-        mode_id = next(item['Value'] for item in data if item['ValueType'] == 14)
+        mode_id = SolidmationClient._find_value(data,14)
         if mode_id:
             mode_id = int(mode_id)
 
-        swing_mode = next(item['Value'] for item in data if item['ValueType'] == 18)
+        swing_mode = SolidmationClient._find_value(data,18)
         if swing_mode:
             swing_mode = int(swing_mode)
 
-        # preset_mode = next(item['Value'] for item in data if item['ValueType'] == 18)
+        # preset_mode = SolidmationClient._find_value(data,18)
         # if preset_mode:
         #     preset_mode = int(preset_mode)
         return {
@@ -245,6 +254,9 @@ class SolidmationClient:
             'mode': MODE[mode]
         }
         response = await self._async_set_device_mode(device_id, config)
-        command = PRESET_MODE.get(preset_mode) or SWING_MODE.get(swing_mode)
-        await self._async_send_command(device_id, command)
+        LOGGER.debug("preset_mode = %s, swing_mode = %s", preset_mode, swing_mode)
+        if preset_mode != 'none' or swing_mode != 'off':
+            command = PRESET_MODE.get(preset_mode) | SWING_MODE.get(swing_mode)
+            LOGGER.debug("command = %d", command)
+            await self._async_send_command(device_id, command)
         return response

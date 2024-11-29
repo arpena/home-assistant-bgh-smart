@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import timedelta
 
 import voluptuous as vol
@@ -34,12 +33,11 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import PlatformNotReady, ConfigEntryAuthFailed
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_call_later
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from aiohttp.client_exceptions import ClientError
 
 from .const import DOMAIN, LOGGER, CONF_BACKEND, BACKEND_BGH, BACKEND_MYHABEETAT
@@ -92,22 +90,19 @@ MAP_STATE_ICONS = {
 
 SCAN_INTERVAL = timedelta(seconds=10)
 
-DOMAIN = "climate"
-
-async def async_setup_platform(
-        hass: HomeAssistant,
-        config: ConfigType, 
-        async_add_entities: AddEntitiesCallback,
-        discovery_info: DiscoveryInfoType | None = None
-        ) -> None:
-    """Set up the BGH Smart platform."""
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the BGH Smart entry."""
     from . import solidmation
 
     # Assign configuration variables.
     # The configuration check takes care they are present.
-    username = config[CONF_USERNAME]
-    password = config[CONF_PASSWORD]
-    backend = config.get("backend") 
+    username = entry.data[CONF_USERNAME]
+    password = entry.data[CONF_PASSWORD]
+    backend = entry.data.get(CONF_BACKEND) 
 
     # Setup connection with devices/cloud
     client = solidmation.SolidmationClient(username, password, backend, websession=async_get_clientsession(hass))
@@ -117,7 +112,7 @@ async def async_setup_platform(
         LOGGER.error("Invalid credentials for BGH Smart cloud")
         raise ConfigEntryAuthFailed("Invalid credentials") from exception
     except (solidmation.LoginTimeoutException, ClientError, ConnectionError) as exception:
-        raise PlatformNotReady("Could not connect to {backend} with username {username}") from exception
+        raise ConfigEntryNotReady("Could not connect to {backend} with username {username}") from exception
     except Exception as ex:
         LOGGER.exception(ex)
         return False
@@ -135,6 +130,8 @@ async def async_setup_platform(
         home_devices = await client.async_get_devices(home['HomeID'])
         for _device_id, device in home_devices.items():
             devices.append(device)
+
+    entry.runtime_data = client
 
     async_add_entities(
         [ SolidmationHVAC(device, client) for device in devices ], True)
@@ -154,7 +151,7 @@ class SolidmationHVAC(ClimateEntity):
         self._device_name = self._device['device_name']
         self._device_id = self._device['device_id']
         self._home_id = self._device['device_data']['HomeID']
-        self._attr_unique_id = self._device['device_id']
+        self._attr_unique_id = "bgh_smart_{:x}".format(self._device['device_id'])
         self._attr_min_temp = None
         self._attr_max_temp = None
         self._attr_current_temperature = None
@@ -250,5 +247,5 @@ class SolidmationHVAC(ClimateEntity):
         """Return the icon for the current state."""
         icon = None
         if self._attr_hvac_mode != HVACMode.OFF:
-            icon = MAP_STATE_ICONS.get(self._hvac_mode)
+            icon = MAP_STATE_ICONS.get(self._attr_hvac_mode)
         return icon

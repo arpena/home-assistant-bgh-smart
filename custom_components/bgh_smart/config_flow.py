@@ -17,7 +17,7 @@ from .options_flow import OptionsFlow
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for BGH Smart."""
-    LOGGER.error("Creating config flow")
+    LOGGER.debug(f"Creating config flow domain = {DOMAIN}")
 
     VERSION = 1
     MINOR_VERSION = 1
@@ -28,21 +28,15 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_validate_input(self, user_input):
         """Validate user credentials."""
-        LOGGER.error("inside async validate input config flow")
         self._username = user_input.get(CONF_USERNAME) or ""
         password = user_input.get(CONF_PASSWORD) or ""
         self._backend = user_input.get(CONF_BACKEND) or ""
 
         session = async_get_clientsession(self.hass)
 
-        client = solidmation.SolidmationClient(username=self._username, password=password, backend=self._backend, websession=session)
+        client = solidmation.SolidmationClient(self._username, password, self._backend, websession=session)
 
-        homes = await client.async_get_homes()
-
-        # Verify that passed in configuration works
-        if not homes:
-            LOGGER.error("Could not connect to BGH Smart cloud")
-            return
+        await client.async_login()
 
         return self.async_create_entry(
             title=INTEGRATION_NAME,
@@ -51,7 +45,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
-        LOGGER.error("inside async step user config flow")
         errors = {}
 
         if user_input:

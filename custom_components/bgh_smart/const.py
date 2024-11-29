@@ -9,7 +9,7 @@ from homeassistant.const import Platform
 
 LOGGER: logging.Logger = logging.getLogger(__package__)
 
-DOMAIN: Final = "climate"
+DOMAIN: Final = "bgh_smart"
 INTEGRATION_NAME: Final = "BGH Smart Cloud"
 
 ATTR_MANUFACTURER: Final = "BGH"
